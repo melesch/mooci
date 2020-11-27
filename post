@@ -1,0 +1,76 @@
+add_action('rest_api_init', function () {
+	register_rest_route('mooci', '/suggestions', array(
+		'methods' => 'GET',
+		'callback' => function ($request) {
+			$output = array();
+
+			$posts = get_posts(array(
+				'posts_per_page' => 5000,
+				'post_type' => array('arzt', 'blog', 'behandlungsarten')
+			));
+
+			foreach ($posts as $post) {
+				$link = get_permalink($post);
+				$output[] = array($post->post_title, parse_url($link)['path']);
+			}
+
+			return $output;
+		}
+	));
+	
+	register_rest_route('mooci', '/blog', array(
+		'methods' => 'GET',
+		'callback' => function ($request) {
+			$html = '';
+
+			$tax_query = array();
+
+			if (!empty($_GET['cat'])) $tax_query = array(
+				array(
+			        'taxonomy' => 'kategorie',
+			        'terms' => array($_GET['cat']),
+			        'field' => 'slug'
+			    )
+			);
+
+			$childrens = new WP_Query(array(
+			    'post_parent' => $post->ID,
+			    'post_type' => 'blog',
+			    'tax_query' => $tax_query,
+			    'posts_per_page' => 9,
+			    'paged' => $_GET['page']
+			));
+
+			foreach ($childrens->posts as $post) {
+				$link = get_permalink($post);
+				$date = get_the_time('j. F Y', $post->ID);
+
+				$imagerelated = get_field('vorschaubild_blog_new', $post->ID);
+				if ( !empty($imagerelated) ) {
+					$sizerelated = 'large';
+					$thumbrelated = $imagerelated['sizes'][ $sizerelated ];
+				}
+
+				$html .= "<div class='col-12 col-sm-6 col-md-6 col-lg-4'>
+			        <a href='{$link}'>
+			            <div class='doc_exp_item'>
+			                <img class='main_img img-fluid' src='{$thumbrelated}' />
+			                <div class='explained'>
+			                    <p class='date mb-2'>{$date}</p>
+			                    <h5 class='title'>{$post->post_title}</h5>
+			                </div>
+			            </div>
+			        </a>
+			    </div>";
+			}
+
+			$output = array(
+				'html' => $html,
+				'max_num_pages' => $childrens->max_num_pages,
+				'havemore' => $childrens->max_num_pages > $_GET['page']
+			);
+
+			return $output;
+		}
+	));
+});
